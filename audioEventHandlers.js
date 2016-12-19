@@ -57,7 +57,7 @@ var audioEventHandlers = Alexa.CreateStateHandler(constants.states.PLAY_MODE, {
         var enqueueIndex = this.attributes['index'];
         enqueueIndex +=1;
         // Checking if  there are any items to be enqueued.
-        if (enqueueIndex === audioData.length) {
+        if (enqueueIndex === this.attributes['activePlaylist'].length) {
             if (this.attributes['loop']) {
                 // Enqueueing the first item since looping is enabled.
                 enqueueIndex = 0;
@@ -71,7 +71,7 @@ var audioEventHandlers = Alexa.CreateStateHandler(constants.states.PLAY_MODE, {
 
         var enqueueToken = this.attributes['enqueuedToken'];
         var playBehavior = 'ENQUEUE';
-        var podcast = audioData[this.attributes['playOrder'][enqueueIndex]];
+        var podcast = this.attributes['activePlaylist'][this.attributes['playOrder'][enqueueIndex]];
         var expectedPreviousToken = this.attributes['token'];
         var offsetInMilliseconds = 0;
         

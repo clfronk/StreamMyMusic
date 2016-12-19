@@ -1,8 +1,109 @@
 'use strict';
 
+var AWS = require("aws-sdk");
 var Alexa = require('alexa-sdk');
 var audioData = require('./audioAssets');
 var constants = require('./constants');
+
+var dynamoDB = new AWS.DynamoDB();
+var docClient = new AWS.DynamoDB.DocumentClient();
+
+var tempGlobal = null;
+
+function preprocessName(origName)
+{
+    var processedName = "";
+    origName = origName.toLowerCase();
+    for ( var i = 0; i < origName.length; i++ )
+    {
+        var charStr = origName.charAt(i);
+        var pattern = /[a-z0-9]/;
+        if( charStr.match(pattern) !== null )
+        {
+            processedName = processedName.concat(origName.charAt(i));            
+        }
+    }
+    
+    if(processedName.length === 0)
+    {
+        processedName = "Unknown";
+    }
+    
+    return processedName;
+}
+
+function getPlaylistForTrackIntent(intent)
+{
+    intent = this.event.request.intent;
+    var track = intent.slots['Track'].value;
+    var artist = intent.slots['Artist'].value;
+    
+    var tableName = process.env.DYNAMODB_MUSIC_TRACK_TABLE;
+    var params = null;
+    if (artist !== null && artist !== undefined && artist !== "")
+    {
+        params = {
+            TableName: tableName,
+            KeyConditionExpression: "title = :track and artist = :artist",
+            ExpressionAttributeValues: {
+                ":track": preprocessName(track),
+                ":artist": preprocessName(artist)
+            }
+        };
+    }
+    else
+    {
+        params = {
+            TableName: tableName,
+            KeyConditionExpression: "title = :track",
+            ExpressionAttributeValues: {
+                ":track": preprocessName(track)
+            }
+        };
+    }
+    
+    console.log("Querying for track " + track + "\n");
+    
+    tempGlobal = this;
+    docClient.query(params, function(err, data) {
+        
+        if(err)
+        {
+            console.log("Error in query.\n");
+            //console.log(JSON.stringify(err,NULL,2));
+        }
+        else
+        {
+            console.log("Query completed\n");
+            console.log(data);
+            if (data !== null && data.Items !== null)
+            {
+                tempGlobal.attributes['activePlaylist'] = [];
+                for(var i = 0; i < data.Items.length; ++i)
+                {
+                    var item = data.Items[i];
+                    tempGlobal.attributes['activePlaylist'].push( {
+                        "title": item.ui_title + " by " + item.ui_artist,
+                        "url": item.url
+                    } );
+                }
+                
+                // Initialize Attributes if undefined.
+                tempGlobal.attributes['playOrder'] = Array.apply(null, {length: tempGlobal.attributes['activePlaylist'].length}).map(Number.call, Number);
+                tempGlobal.attributes['index'] = 0;
+                tempGlobal.attributes['offsetInMilliseconds'] = 0;
+                tempGlobal.attributes['loop'] = true;
+                tempGlobal.attributes['shuffle'] = false;
+                tempGlobal.attributes['playbackIndexChanged'] = true;
+                
+                //  Change state to START_MODE
+                tempGlobal.handler.state = constants.states.START_MODE;
+                
+                controller.play.call(tempGlobal);
+            }
+        }
+    });
+}
 
 var stateHandlers = {
     startModeIntentHandlers : Alexa.CreateStateHandler(constants.states.START_MODE, {
@@ -10,8 +111,9 @@ var stateHandlers = {
          *  All Intent Handlers for state : START_MODE
          */
         'LaunchRequest' : function () {
+            this.attributes['activePlaylist'] = [];
             // Initialize Attributes
-            this.attributes['playOrder'] = Array.apply(null, {length: audioData.length}).map(Number.call, Number);
+            this.attributes['playOrder'] = Array.apply(null, {length: this.attributes['activePlaylist'].length}).map(Number.call, Number);
             this.attributes['index'] = 0;
             this.attributes['offsetInMilliseconds'] = 0;
             this.attributes['loop'] = true;
@@ -20,30 +122,19 @@ var stateHandlers = {
             //  Change state to START_MODE
             this.handler.state = constants.states.START_MODE;
 
-            var message = 'Welcome to the Stream My Music. You can say, play artist, play album, or play song to begin.';
+            var message = 'Welcome to Stream My Music. You can say, play artist, play album, or play song to begin.';
             var reprompt = 'You can say, play artist, play album, or play song to begin.';
 
             this.response.speak(message).listen(reprompt);
             this.emit(':responseReady');
         },
         'PlayTrack' : function () {
-            if (!this.attributes['playOrder']) {
-                // Initialize Attributes if undefined.
-                this.attributes['playOrder'] = Array.apply(null, {length: audioData.length}).map(Number.call, Number);
-                this.attributes['index'] = 0;
-                this.attributes['offsetInMilliseconds'] = 0;
-                this.attributes['loop'] = true;
-                this.attributes['shuffle'] = false;
-                this.attributes['playbackIndexChanged'] = true;
-                //  Change state to START_MODE
-                this.handler.state = constants.states.START_MODE;
-            }
-            controller.play.call(this);
+            getPlaylistForTrackIntent.call(this);
         },
         'PlayAlbum' : function () {
             if (!this.attributes['playOrder']) {
                 // Initialize Attributes if undefined.
-                this.attributes['playOrder'] = Array.apply(null, {length: audioData.length}).map(Number.call, Number);
+                this.attributes['playOrder'] = Array.apply(null, {length: this.attributes['activePlaylist'].length}).map(Number.call, Number);
                 this.attributes['index'] = 0;
                 this.attributes['offsetInMilliseconds'] = 0;
                 this.attributes['loop'] = true;
@@ -57,7 +148,7 @@ var stateHandlers = {
         'PlayArtist' : function () {
             if (!this.attributes['playOrder']) {
                 // Initialize Attributes if undefined.
-                this.attributes['playOrder'] = Array.apply(null, {length: audioData.length}).map(Number.call, Number);
+                this.attributes['playOrder'] = Array.apply(null, {length: this.attributes['activePlaylist'].length}).map(Number.call, Number);
                 this.attributes['index'] = 0;
                 this.attributes['offsetInMilliseconds'] = 0;
                 this.attributes['loop'] = true;
@@ -110,11 +201,11 @@ var stateHandlers = {
             var reprompt;
             if (this.attributes['playbackFinished']) {
                 this.handler.state = constants.states.START_MODE;
-                message = 'Welcome to the Stream My Music. You can say, play artist, play album, or play song to begin.';
+                message = 'Welcome to Stream My Music. You can say, play artist, play album, or play song to begin.';
                 reprompt = 'You can say, play artist, play album, or play song to begin.';
             } else {
                 this.handler.state = constants.states.RESUME_DECISION_MODE;
-                message = 'You were listening to ' + audioData[this.attributes['playOrder'][this.attributes['index']]].title +
+                message = 'You were listening to ' + this.attributes['activePlaylist'][this.attributes['playOrder'][this.attributes['index']]].title +
                     ' Would you like to resume?';
                 reprompt = 'You can say yes to resume or no to play from the top.';
             }
@@ -166,7 +257,7 @@ var stateHandlers = {
          *  All Intent Handlers for state : RESUME_DECISION_MODE
          */
         'LaunchRequest' : function () {
-            var message = 'You were listening to ' + audioData[this.attributes['playOrder'][this.attributes['index']]].title +
+            var message = 'You were listening to ' + this.attributes['activePlaylist'][this.attributes['playOrder'][this.attributes['index']]].title +
                 ' Would you like to resume?';
             var reprompt = 'You can say yes to resume or no to play from the top.';
             this.response.speak(message).listen(reprompt);
@@ -178,7 +269,7 @@ var stateHandlers = {
         'AMAZON.YesIntent' : function () { controller.play.call(this) },
         'AMAZON.NoIntent' : function () { controller.reset.call(this) },
         'AMAZON.HelpIntent' : function () {
-            var message = 'You were listening to ' + audioData[this.attributes['index']].title +
+            var message = 'You were listening to ' + this.attributes['activePlaylist'][this.attributes['index']].title +
                 ' Would you like to resume?';
             var reprompt = 'You can say yes to resume or no to play from the top.';
             this.response.speak(message).listen(reprompt);
@@ -228,7 +319,7 @@ var controller = function () {
 
             var token = String(this.attributes['playOrder'][this.attributes['index']]);
             var playBehavior = 'REPLACE_ALL';
-            var podcast = audioData[this.attributes['playOrder'][this.attributes['index']]];
+            var podcast = this.attributes['activePlaylist'][this.attributes['playOrder'][this.attributes['index']]];
             var offsetInMilliseconds = this.attributes['offsetInMilliseconds'];
             // Since play behavior is REPLACE_ALL, enqueuedToken attribute need to be set to null.
             this.attributes['enqueuedToken'] = null;
@@ -259,7 +350,7 @@ var controller = function () {
             var index = this.attributes['index'];
             index += 1;
             // Check for last audio file.
-            if (index === audioData.length) {
+            if (index === this.attributes['activePlaylist'].length) {
                 if (this.attributes['loop']) {
                     index = 0;
                 } else {
@@ -289,7 +380,7 @@ var controller = function () {
             // Check for last audio file.
             if (index === -1) {
                 if (this.attributes['loop']) {
-                    index = audioData.length - 1;
+                    index = this.attributes['activePlaylist'].length - 1;
                 } else {
                     // Reached at the end. Thus reset state to start mode and stop playing.
                     this.handler.state = constants.states.START_MODE;
@@ -338,7 +429,7 @@ var controller = function () {
                 this.attributes['shuffle'] = false;
                 // Although changing index, no change in audio file being played as the change is to account for reordering playOrder
                 this.attributes['index'] = this.attributes['playOrder'][this.attributes['index']];
-                this.attributes['playOrder'] = Array.apply(null, {length: audioData.length}).map(Number.call, Number);
+                this.attributes['playOrder'] = Array.apply(null, {length: this.attributes['activePlaylist'].length}).map(Number.call, Number);
             }
             controller.play.call(this);
         },
@@ -373,7 +464,7 @@ function canThrowCard() {
 
 function shuffleOrder(callback) {
     // Algorithm : Fisher-Yates shuffle
-    var array = Array.apply(null, {length: audioData.length}).map(Number.call, Number);
+    var array = Array.apply(null, {length: this.attributes['activePlaylist'].length}).map(Number.call, Number);
     var currentIndex = array.length;
     var temp, randomIndex;
 
