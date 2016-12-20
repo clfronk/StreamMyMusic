@@ -99,11 +99,226 @@ function getPlaylistForTrackIntent(intent)
                 //  Change state to START_MODE
                 tempGlobal.handler.state = constants.states.START_MODE;
                 
-                controller.play.call(tempGlobal);
+                if (tempGlobal.attributes['activePlaylist'].length == 0)
+                {
+                    var message = "Unable to find the song " + track;
+                    if(artist != null && artist !== undefined && artist !== "")
+                    {
+                        message += " by " + artist;
+                    }
+                    
+                    tempGlobal.emit(':saveState', true);
+                    
+                    tempGlobal.response.speak(message);
+                    tempGlobal.emit(':responseReady');
+                }
+                else
+                {                
+                    controller.play.call(tempGlobal);
+                }
             }
         }
     });
 }
+
+function compareAristTrackItem(a, b)
+{
+    if( a.ui_album === b.ui_album )
+    {
+        var trackNum1 = parseInt(a.trackNumber);
+        var trackNum2 = parseInt(b.trackNumber);
+        
+        if( trackNum1 < trackNum2 )
+        {
+            return -1;
+        }
+        else
+        {
+            return 1;
+        }
+    }
+    else
+    {
+        if( a.ui_album < b.ui_album )
+        {
+            return -1;
+        }
+        else
+        {
+            return 1;
+        }
+    }
+}
+
+function getPlaylistForArtistIntent(intent)
+{
+    intent = this.event.request.intent;
+    var artist = intent.slots['Artist'].value;
+    
+    var tableName = process.env.DYNAMODB_MUSIC_ARTIST_TABLE;
+    var params = null;
+    console.log(artist);
+    if (artist !== null && artist !== undefined && artist !== "")
+    {
+        params = {
+            TableName: tableName,
+            KeyConditionExpression: "artist = :artist",
+            ExpressionAttributeValues: {
+                ":artist": preprocessName(artist)
+            }
+        };
+    }
+    
+    tempGlobal = this;
+    docClient.query(params, function(err, data) {
+        
+        if(err)
+        {
+            console.log("Error in query.\n");
+            console.log(err);
+        }
+        else
+        {
+            console.log(data.Items);
+            if (data !== null && data.Items !== null)
+            {
+                tempGlobal.attributes['activePlaylist'] = [];
+                
+                var sortedItems = data.Items;
+                sortedItems.sort(compareAristTrackItem);
+                for(var i = 0; i < sortedItems.length; ++i)
+                {
+                    var item = sortedItems[i];
+                    tempGlobal.attributes['activePlaylist'].push( {
+                        "title": item.ui_title + " by " + item.ui_artist,
+                        "url": item.url
+                    } );
+                }
+                
+                // Initialize Attributes if undefined.
+                tempGlobal.attributes['playOrder'] = Array.apply(null, {length: tempGlobal.attributes['activePlaylist'].length}).map(Number.call, Number);
+                tempGlobal.attributes['index'] = 0;
+                tempGlobal.attributes['offsetInMilliseconds'] = 0;
+                tempGlobal.attributes['loop'] = true;
+                tempGlobal.attributes['shuffle'] = false;
+                tempGlobal.attributes['playbackIndexChanged'] = true;
+                
+                //  Change state to START_MODE
+                tempGlobal.handler.state = constants.states.START_MODE;
+                
+                if (tempGlobal.attributes['activePlaylist'].length == 0)
+                {
+                    var message = "Unable to find the artist " + artist;
+
+                    tempGlobal.emit(':saveState', true);
+                    
+                    tempGlobal.response.speak(message);
+                    tempGlobal.emit(':responseReady');
+                }
+                else
+                {                
+                    controller.play.call(tempGlobal);
+                }
+            }
+        }
+    });    
+}
+
+function getPlaylistForAlbumIntent(intent)
+{
+    intent = this.event.request.intent;
+    var album = intent.slots['Album'].value;
+    var artist = intent.slots['Artist'].value;
+    
+    var tableName = process.env.DYNAMODB_MUSIC_ALBUM_TABLE;
+    var params = null;
+    if (artist !== null && artist !== undefined && artist !== "")
+    {
+        params = {
+            TableName: tableName,
+            KeyConditionExpression: "album = :album and artist = :artist",
+            ExpressionAttributeValues: {
+                ":album": preprocessName(album),
+                ":artist": preprocessName(artist)
+            }
+        };
+    }
+    else
+    {
+        params = {
+            TableName: tableName,
+            KeyConditionExpression: "album = :album",
+            ExpressionAttributeValues: {
+                ":album": preprocessName(album)
+            }
+        };
+    }
+    
+    console.log("Querying for album " + album + "\n");
+    
+    tempGlobal = this;
+    docClient.query(params, function(err, data) {
+        
+        if(err)
+        {
+            console.log("Error in query.\n");
+            //console.log(JSON.stringify(err,NULL,2));
+        }
+        else
+        {
+            console.log("Query completed\n");
+            console.log(data);
+            if (data !== null && data.Items !== null)
+            {
+                tempGlobal.attributes['activePlaylist'] = [];
+                for(var i = 0; i < data.Items.length; ++i)
+                {
+                    var item = data.Items[i];
+                    
+                    var tracks = item.tracks;
+                    tracks.sort(compareAristTrackItem);
+                    for( var j = 0; j < tracks.length; ++j )
+                    {                    
+                        tempGlobal.attributes['activePlaylist'].push( {
+                            "title": tracks[j].ui_title + " by " + item.ui_artist,
+                            "url": tracks[i].url
+                        } );
+                    }
+                }
+                
+                // Initialize Attributes if undefined.
+                tempGlobal.attributes['playOrder'] = Array.apply(null, {length: tempGlobal.attributes['activePlaylist'].length}).map(Number.call, Number);
+                tempGlobal.attributes['index'] = 0;
+                tempGlobal.attributes['offsetInMilliseconds'] = 0;
+                tempGlobal.attributes['loop'] = true;
+                tempGlobal.attributes['shuffle'] = false;
+                tempGlobal.attributes['playbackIndexChanged'] = true;
+                
+                //  Change state to START_MODE
+                tempGlobal.handler.state = constants.states.START_MODE;
+                
+                if (tempGlobal.attributes['activePlaylist'].length == 0)
+                {
+                    var message = "Unable to find the album " + album;
+                    if(artist != null && artist !== undefined && artist !== "")
+                    {
+                        message += " by " + artist;
+                    }
+                    
+                    tempGlobal.emit(':saveState', true);
+                    
+                    tempGlobal.response.speak(message);
+                    tempGlobal.emit(':responseReady');
+                }
+                else
+                {                
+                    controller.play.call(tempGlobal);
+                }
+            }
+        }
+    });
+}
+
 
 var stateHandlers = {
     startModeIntentHandlers : Alexa.CreateStateHandler(constants.states.START_MODE, {
@@ -132,32 +347,10 @@ var stateHandlers = {
             getPlaylistForTrackIntent.call(this);
         },
         'PlayAlbum' : function () {
-            if (!this.attributes['playOrder']) {
-                // Initialize Attributes if undefined.
-                this.attributes['playOrder'] = Array.apply(null, {length: this.attributes['activePlaylist'].length}).map(Number.call, Number);
-                this.attributes['index'] = 0;
-                this.attributes['offsetInMilliseconds'] = 0;
-                this.attributes['loop'] = true;
-                this.attributes['shuffle'] = false;
-                this.attributes['playbackIndexChanged'] = true;
-                //  Change state to START_MODE
-                this.handler.state = constants.states.START_MODE;
-            }
-            controller.play.call(this);
+            getPlaylistForAlbumIntent.call(this);
         },
         'PlayArtist' : function () {
-            if (!this.attributes['playOrder']) {
-                // Initialize Attributes if undefined.
-                this.attributes['playOrder'] = Array.apply(null, {length: this.attributes['activePlaylist'].length}).map(Number.call, Number);
-                this.attributes['index'] = 0;
-                this.attributes['offsetInMilliseconds'] = 0;
-                this.attributes['loop'] = true;
-                this.attributes['shuffle'] = false;
-                this.attributes['playbackIndexChanged'] = true;
-                //  Change state to START_MODE
-                this.handler.state = constants.states.START_MODE;
-            }
-            controller.play.call(this);
+            getPlaylistForArtistIntent.call(this);
         },        
         'AMAZON.HelpIntent' : function () {
             var message = 'Welcome to the Stream My Music. You can say, play artist, play album, or play song to begin.';
@@ -213,9 +406,9 @@ var stateHandlers = {
             this.response.speak(message).listen(reprompt);
             this.emit(':responseReady');
         },
-        'PlayTrack' : function () { controller.play.call(this) },
-        'PlayArtist' : function () { controller.play.call(this) },
-        'PlayAlbum' : function () { controller.play.call(this) },
+        'PlayTrack' : function () { getPlaylistForTrackIntent.call(this) },
+        'PlayArtist' : function () { getPlaylistForArtistIntent.call(this) },
+        'PlayAlbum' : function () { getPlaylistForAlbumIntent.call(this) },
         'AMAZON.NextIntent' : function () { controller.playNext.call(this) },
         'AMAZON.PreviousIntent' : function () { controller.playPrevious.call(this) },
         'AMAZON.PauseIntent' : function () { controller.stop.call(this) },
@@ -263,9 +456,9 @@ var stateHandlers = {
             this.response.speak(message).listen(reprompt);
             this.emit(':responseReady');
         },
-        'PlayTrack' : function () { controller.play.call(this) },
-        'PlayArtist' : function () { controller.play.call(this) },
-        'PlayAlbum' : function () { controller.play.call(this) },
+        'PlayTrack' : function () { getPlaylistForTrackIntent.call(this) },
+        'PlayArtist' : function () { getPlaylistForArtistIntent.call(this) },
+        'PlayAlbum' : function () { getPlaylistForAlbumIntent.call(this) },
         'AMAZON.YesIntent' : function () { controller.play.call(this) },
         'AMAZON.NoIntent' : function () { controller.reset.call(this) },
         'AMAZON.HelpIntent' : function () {
