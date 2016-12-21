@@ -14,6 +14,7 @@ function preprocessName(origName)
 {
     var processedName = "";
     origName = origName.toLowerCase();
+    
     for ( var i = 0; i < origName.length; i++ )
     {
         var charStr = origName.charAt(i);
@@ -101,6 +102,11 @@ function getPlaylistForTrackIntent(intent)
                 
                 if (tempGlobal.attributes['activePlaylist'].length == 0)
                 {
+                    intent.name = "PlayAlbum";
+                    intent.slots['Album'] = { name: "Album", value: track };
+                    getPlaylistForAlbumIntent.call(tempGlobal, intent);
+                    
+                    /*
                     var message = "Unable to find the song " + track;
                     if(artist != null && artist !== undefined && artist !== "")
                     {
@@ -111,6 +117,7 @@ function getPlaylistForTrackIntent(intent)
                     
                     tempGlobal.response.speak(message);
                     tempGlobal.emit(':responseReady');
+                    */
                 }
                 else
                 {                
