@@ -10,6 +10,21 @@ var docClient = new AWS.DynamoDB.DocumentClient();
 
 var tempGlobal = null;
 
+function isAlbumSearched(element)
+{
+    return element === "album";
+}
+
+function isArtistSearched(element)
+{
+    return element === "artist";
+}
+
+function isTrackSearched(element)
+{
+    return element === "track";
+}
+
 function preprocessName(origName)
 {
     var processedName = "";
@@ -70,13 +85,10 @@ function getPlaylistForTrackIntent(intent)
         
         if(err)
         {
-            console.log("Error in query.\n");
-            //console.log(JSON.stringify(err,NULL,2));
+            console.log(err);
         }
         else
         {
-            console.log("Query completed\n");
-            console.log(data);
             if (data !== null && data.Items !== null)
             {
                 tempGlobal.attributes['activePlaylist'] = [];
@@ -96,31 +108,59 @@ function getPlaylistForTrackIntent(intent)
                 tempGlobal.attributes['loop'] = true;
                 tempGlobal.attributes['shuffle'] = false;
                 tempGlobal.attributes['playbackIndexChanged'] = true;
+
                 
                 //  Change state to START_MODE
                 tempGlobal.handler.state = constants.states.START_MODE;
                 
                 if (tempGlobal.attributes['activePlaylist'].length == 0)
                 {
-                    intent.name = "PlayAlbum";
-                    intent.slots['Album'] = { name: "Album", value: track };
-                    getPlaylistForAlbumIntent.call(tempGlobal, intent);
-                    
-                    /*
-                    var message = "Unable to find the song " + track;
-                    if(artist != null && artist !== undefined && artist !== "")
+                    var searchedAlbums = false;
+                    var searchedArtists = false;
+                    if (tempGlobal.attributes['searchedTables'])
                     {
-                        message += " by " + artist;
+                        tempGlobal.attributes['searchedTables'].push("track");
+                        searchedAlbums = tempGlobal.attributes['searchedTables'].find(isAlbumSearched) !== undefined;
+                        searchedArtists = tempGlobal.attributes['searchedTables'].find(isArtistSearched) !== undefined; 
+                    }
+                    else
+                    {
+                        tempGlobal.attributes['searchedTables'] = ["track"];
                     }
                     
                     tempGlobal.emit(':saveState', true);
-                    
-                    tempGlobal.response.speak(message);
-                    tempGlobal.emit(':responseReady');
-                    */
+                                       
+                    if (!searchedAlbums)
+                    {
+                        intent.name = "PlayAlbum";
+                        intent.slots['Album'] = { name: "Album", value: track };
+                        getPlaylistForAlbumIntent.call(tempGlobal, intent);
+                    }
+                    else if (!searchedArtists && artist === "")
+                    {
+                        intent.name = "PlayArtist";
+                        intent.slots['Artist'] = { name: "Artist", value: track };
+                        getPlaylistForArtistIntent.call(tempGlobal, intent);
+                    }
+                    else
+                    {
+                        var message = "Unable to find " + track;
+                        if(artist != null && artist !== undefined && artist !== "")
+                        {
+                            message += " by " + artist;
+                        }
+
+                        tempGlobal.attributes['searchedTables'] = [];
+                        tempGlobal.emit(':saveState', true);
+                        
+                        tempGlobal.response.speak(message);
+                        tempGlobal.emit(':responseReady');
+                    }
                 }
                 else
-                {                
+                {
+                    tempGlobal.attributes['searchedTables'] = [];
+                    tempGlobal.emit(':saveState', true);
                     controller.play.call(tempGlobal);
                 }
             }
@@ -181,12 +221,10 @@ function getPlaylistForArtistIntent(intent)
         
         if(err)
         {
-            console.log("Error in query.\n");
             console.log(err);
         }
         else
         {
-            console.log(data.Items);
             if (data !== null && data.Items !== null)
             {
                 tempGlobal.attributes['activePlaylist'] = [];
@@ -215,15 +253,50 @@ function getPlaylistForArtistIntent(intent)
                 
                 if (tempGlobal.attributes['activePlaylist'].length == 0)
                 {
-                    var message = "Unable to find the artist " + artist;
-
+                    var searchedAlbums = false;
+                    var searchedTracks = false;
+                    if (tempGlobal.attributes['searchedTables'])
+                    {
+                        tempGlobal.attributes['searchedTables'].push("artist");
+                        searchedAlbums = tempGlobal.attributes['searchedTables'].find(isAlbumSearched) !== undefined;
+                        searchedTracks = tempGlobal.attributes['searchedTables'].find(isTrackSearched) !== undefined; 
+                    }
+                    else
+                    {
+                        tempGlobal.attributes['searchedTables'] = ["artist"];
+                    }
+                    
                     tempGlobal.emit(':saveState', true);
                     
-                    tempGlobal.response.speak(message);
-                    tempGlobal.emit(':responseReady');
+                    var artist = intent.slots['Artist'].value = "";
+                    
+                    if (!searchedAlbums)
+                    {
+                        intent.name = "PlayAlbum";
+                        intent.slots['Album'] = { name: "Album", value: artist };
+                        getPlaylistForAlbumIntent.call(tempGlobal, intent);
+                    }
+                    else if (!searchedTracks)
+                    {
+                        intent.name = "PlayTrack";
+                        intent.slots['Track'] = { name: "Track", value: artist };
+                        getPlaylistForTrackIntent.call(tempGlobal, intent);
+                    }
+                    else
+                    {
+                        var message = "Unable to find " + artist;
+                        
+                        tempGlobal.attributes['searchedTables'] = [];
+                        tempGlobal.emit(':saveState', true);
+                        
+                        tempGlobal.response.speak(message);
+                        tempGlobal.emit(':responseReady');
+                    }
                 }
                 else
-                {                
+                {
+                    tempGlobal.attributes['searchedTables'] = [];
+                    tempGlobal.emit(':saveState', true);
                     controller.play.call(tempGlobal);
                 }
             }
@@ -268,13 +341,10 @@ function getPlaylistForAlbumIntent(intent)
         
         if(err)
         {
-            console.log("Error in query.\n");
-            //console.log(JSON.stringify(err,NULL,2));
+            console.log(err);
         }
         else
         {
-            console.log("Query completed\n");
-            console.log(data);
             if (data !== null && data.Items !== null)
             {
                 tempGlobal.attributes['activePlaylist'] = [];
@@ -306,19 +376,52 @@ function getPlaylistForAlbumIntent(intent)
                 
                 if (tempGlobal.attributes['activePlaylist'].length == 0)
                 {
-                    var message = "Unable to find the album " + album;
-                    if(artist != null && artist !== undefined && artist !== "")
+                    var searchedArtists = false;
+                    var searchedTracks = false;
+                    if (tempGlobal.attributes['searchedTables'])
                     {
-                        message += " by " + artist;
+                        tempGlobal.attributes['searchedTables'].push("album");
+                        searchedArtists = tempGlobal.attributes['searchedTables'].find(isArtistSearched) !== undefined;
+                        searchedTracks = tempGlobal.attributes['searchedTables'].find(isTrackSearched) !== undefined; 
+                    }
+                    else
+                    {
+                        tempGlobal.attributes['searchedTables'] = ["album"];
                     }
                     
                     tempGlobal.emit(':saveState', true);
                     
-                    tempGlobal.response.speak(message);
-                    tempGlobal.emit(':responseReady');
+                    if (!searchedArtists)
+                    {
+                        intent.name = "PlayArtist";
+                        intent.slots['Artist'] = { name: "Artist", value: album };
+                        getPlaylistForArtistIntent.call(tempGlobal, intent);
+                    }
+                    else if (!searchedTracks && artist === "")
+                    {
+                        intent.name = "PlayTrack";
+                        intent.slots['Track'] = { name: "Track", value: album };
+                        getPlaylistForTrackIntent.call(tempGlobal, intent);
+                    }
+                    else
+                    {                    
+                        var message = "Unable to find " + album;
+                        if(artist != null && artist !== undefined && artist !== "")
+                        {
+                            message += " by " + artist;
+                        }
+                        
+                        tempGlobal.attributes['searchedTables'] = [];
+                        tempGlobal.emit(':saveState', true);
+                        
+                        tempGlobal.response.speak(message);
+                        tempGlobal.emit(':responseReady');
+                    }
                 }
                 else
-                {                
+                {
+                    tempGlobal.attributes['searchedTables'] = [];
+                    tempGlobal.emit(':saveState', true);
                     controller.play.call(tempGlobal);
                 }
             }
@@ -643,7 +746,8 @@ var controller = function () {
             this.attributes['index'] = 0;
             this.attributes['offsetInMilliseconds'] = 0;
             this.attributes['playbackIndexChanged'] = true;
-            controller.play.call(this);
+            this.attributes['activePlaylist'] = [];
+            this.emit(':saveState', true);
         }
     }
 }();
