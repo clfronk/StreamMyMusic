@@ -362,7 +362,7 @@ function getPlaylistForAlbumIntent(intent)
                     {                    
                         tempGlobal.attributes['activePlaylist'].push( {
                             "title": tracks[j].ui_title + " by " + item.ui_artist,
-                            "url": tracks[i].url
+                            "url": tracks[j].url
                         } );
                     }
                 }
