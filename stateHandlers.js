@@ -132,9 +132,7 @@ function getPlaylistForTrackIntent(intent)
                     {
                         tempGlobal.attributes['searchedTables'] = ["track"];
                     }
-                    
-                    tempGlobal.emit(':saveState', true);
-                                       
+                                                          
                     if (!searchedAlbums)
                     {
                         intent.name = "PlayAlbum";
@@ -156,17 +154,19 @@ function getPlaylistForTrackIntent(intent)
                         }
 
                         tempGlobal.attributes['searchedTables'] = [];
-                        tempGlobal.emit(':saveState', true);
                         
                         tempGlobal.response.speak(message);
                         tempGlobal.emit(':responseReady');
+                        
+                        tempGlobal.emit(':saveState', true);
                     }
                 }
                 else
                 {
                     tempGlobal.attributes['searchedTables'] = [];
-                    tempGlobal.emit(':saveState', true);
                     controller.play.call(tempGlobal);
+                    
+                    tempGlobal.emit(':saveState', true);
                 }
             }
         }
@@ -270,10 +270,8 @@ function getPlaylistForArtistIntent(intent)
                     {
                         tempGlobal.attributes['searchedTables'] = ["artist"];
                     }
-                    
-                    tempGlobal.emit(':saveState', true);
-                    
-                    var artist = intent.slots['Artist'].value = "";
+                                       
+                    intent.slots['Artist'].value = "";
                     
                     if (!searchedAlbums)
                     {
@@ -292,17 +290,18 @@ function getPlaylistForArtistIntent(intent)
                         var message = "Unable to find " + artist;
                         
                         tempGlobal.attributes['searchedTables'] = [];
-                        tempGlobal.emit(':saveState', true);
                         
                         tempGlobal.response.speak(message);
                         tempGlobal.emit(':responseReady');
+                        
+                        tempGlobal.emit(':saveState', true);
                     }
                 }
                 else
                 {
                     tempGlobal.attributes['searchedTables'] = [];
-                    tempGlobal.emit(':saveState', true);
                     controller.play.call(tempGlobal);
+                    tempGlobal.emit(':saveState', true);                    
                 }
             }
         }
@@ -393,9 +392,7 @@ function getPlaylistForAlbumIntent(intent)
                     {
                         tempGlobal.attributes['searchedTables'] = ["album"];
                     }
-                    
-                    tempGlobal.emit(':saveState', true);
-                    
+                                       
                     if (!searchedArtists)
                     {
                         intent.name = "PlayArtist";
@@ -416,18 +413,17 @@ function getPlaylistForAlbumIntent(intent)
                             message += " by " + artist;
                         }
                         
-                        tempGlobal.attributes['searchedTables'] = [];
-                        tempGlobal.emit(':saveState', true);
-                        
+                        tempGlobal.attributes['searchedTables'] = [];                        
                         tempGlobal.response.speak(message);
                         tempGlobal.emit(':responseReady');
+                        tempGlobal.emit(':saveState', true);                        
                     }
                 }
                 else
                 {
                     tempGlobal.attributes['searchedTables'] = [];
-                    tempGlobal.emit(':saveState', true);
                     controller.play.call(tempGlobal);
+                    tempGlobal.emit(':saveState', true);                    
                 }
             }
         }
