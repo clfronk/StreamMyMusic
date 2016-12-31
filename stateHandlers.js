@@ -30,6 +30,11 @@ function preprocessName(origName)
     var processedName = "";
     origName = origName.toLowerCase();
     
+    if (origName.match(/^the\s/))
+    {
+        origName = origName.substring(3);
+    }
+    
     for ( var i = 0; i < origName.length; i++ )
     {
         var charStr = origName.charAt(i);
