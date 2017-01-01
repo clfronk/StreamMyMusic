@@ -520,6 +520,14 @@ var stateHandlers = {
         'PlayTrack' : function () { getPlaylistForTrackIntent.call(this) },
         'PlayArtist' : function () { getPlaylistForArtistIntent.call(this) },
         'PlayAlbum' : function () { getPlaylistForAlbumIntent.call(this) },
+        'CurrentlyPlaying': function() {
+            if (this.attributes['index'] < this.attributes.activePlaylist.length)
+            {
+                var message = 'You are listening to ' + this.attributes['activePlaylist'][this.attributes['playOrder'][this.attributes['index']]].title;
+                this.response.speak(message);
+                this.emit(':responseReady');
+            }
+        },
         'AMAZON.NextIntent' : function () { controller.playNext.call(this) },
         'AMAZON.PreviousIntent' : function () { controller.playPrevious.call(this) },
         'AMAZON.PauseIntent' : function () { controller.stop.call(this) },
