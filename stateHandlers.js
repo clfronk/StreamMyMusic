@@ -110,8 +110,6 @@ function getPlaylistForTrackIntent(intent)
                 tempGlobal.attributes['playOrder'] = Array.apply(null, {length: tempGlobal.attributes['activePlaylist'].length}).map(Number.call, Number);
                 tempGlobal.attributes['index'] = 0;
                 tempGlobal.attributes['offsetInMilliseconds'] = 0;
-                tempGlobal.attributes['loop'] = true;
-                tempGlobal.attributes['shuffle'] = false;
                 tempGlobal.attributes['playbackIndexChanged'] = true;
 
                 
@@ -249,8 +247,6 @@ function getPlaylistForArtistIntent(intent)
                 tempGlobal.attributes['playOrder'] = Array.apply(null, {length: tempGlobal.attributes['activePlaylist'].length}).map(Number.call, Number);
                 tempGlobal.attributes['index'] = 0;
                 tempGlobal.attributes['offsetInMilliseconds'] = 0;
-                tempGlobal.attributes['loop'] = true;
-                tempGlobal.attributes['shuffle'] = false;
                 tempGlobal.attributes['playbackIndexChanged'] = true;
                 
                 //  Change state to START_MODE
@@ -371,8 +367,6 @@ function getPlaylistForAlbumIntent(intent)
                 tempGlobal.attributes['playOrder'] = Array.apply(null, {length: tempGlobal.attributes['activePlaylist'].length}).map(Number.call, Number);
                 tempGlobal.attributes['index'] = 0;
                 tempGlobal.attributes['offsetInMilliseconds'] = 0;
-                tempGlobal.attributes['loop'] = true;
-                tempGlobal.attributes['shuffle'] = false;
                 tempGlobal.attributes['playbackIndexChanged'] = true;
                 
                 //  Change state to START_MODE
@@ -442,7 +436,7 @@ var stateHandlers = {
             this.attributes['playOrder'] = Array.apply(null, {length: this.attributes['activePlaylist'].length}).map(Number.call, Number);
             this.attributes['index'] = 0;
             this.attributes['offsetInMilliseconds'] = 0;
-            this.attributes['loop'] = true;
+            this.attributes['loop'] = false;
             this.attributes['shuffle'] = false;
             this.attributes['playbackIndexChanged'] = true;
             //  Change state to START_MODE
@@ -715,6 +709,8 @@ var controller = function () {
             var message = 'Loop turned on.';
             this.response.speak(message);
             this.emit(':responseReady');
+            
+            this.emit(':saveState', true);
         },
         loopOff: function () {
             // Turn off looping
@@ -722,6 +718,8 @@ var controller = function () {
             var message = 'Loop turned off.';
             this.response.speak(message);
             this.emit(':responseReady');
+            
+            this.emit(':saveState', true);
         },
         shuffleOn: function () {
             // Turn on shuffle play.
